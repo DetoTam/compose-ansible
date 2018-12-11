@@ -31,7 +31,6 @@ Import-Module .\Module\module.ps1 -Verbose -Force
 
 $targetPasswordA = "dsf@Fbhc!!hc23P3P"
 
-
 #To add the names of particular computers to the list of trusted hosts
 #Creates a persistent connection to remote computer for NameServerA
 Set-Item wsman:\localhost\Client\TrustedHosts -Value $IPAddressA -Force

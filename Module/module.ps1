@@ -1,15 +1,15 @@
 
 function Credential {
-       param (
-              
+       param ( [parameter(Mandatory=$true)] 
               [string]
               $UserName,
        
-              
+       [parameter(Mandatory=$true)] 
               [string]
-              $tagetPassword
+              $Password
        )
-       $securePassword = convertto-securestring $targetPassword -asplaintext -force
+       
+       $securePassword = convertto-securestring $Password -asplaintext -force
        $cred = New-Object System.Management.Automation.PsCredential($UserName, $securePassword)
 }
 function ConfigurationWinRM {
