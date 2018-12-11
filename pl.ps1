@@ -2,28 +2,17 @@
 param(
     [parameter(Mandatory=$true)]
         [string]
-        $IPAddressA = "209.190.121.251",
+        $IPAddressNewB = "192.168.88.3",
 
     [parameter(Mandatory=$true)]
         [string]
-        $IPAddressNewB = "209.190.121.252",
-
+        $IPAddressdB = "209.190.121.252",
     [parameter(Mandatory=$true)]
         [string]
-        $IPAddressOldB = "209.190.121.252",
-
+        $UserName = "Administrator",
     [parameter(Mandatory=$true)]
         [string]
-        $NameServerA = "VM2_FOR_TEST_GUI",
-
-    [parameter(Mandatory=$true)]
-        [string]
-        $NameServerB = "VM2_FOR_TEST_CORE",
-
-    [parameter(Mandatory=$true)]
-        [string]
-        $UserName = "Administrator"
-    
+        $Name = "VM2-FOR-TEST-CORE"
 )   
 cls
 
@@ -31,37 +20,42 @@ Import-Module .\Module\module.ps1 -Verbose -Force
 
 $targetPasswordA = "dsf@Fbhc!!hc23P3P"
 
-#To add the names of particular computers to the list of trusted hosts
-#Creates a persistent connection to remote computer for NameServerA
-Set-Item wsman:\localhost\Client\TrustedHosts -Value $IPAddressA -Force
-$Credential = Credential -UserName $UserName -tagetPassword $targetPasswordA
-$PSSession = New-PSSession -ComputerName $IPAddressA -Credential $Credential
-
-#Configuration servise winrm for NameServerA
-ConfigurationWinRM -PSSession $PSSession
 
 #To add the names of particular computers to the list of trusted hosts
 #Creates a persistent connection to remote computer for NameServerB
 Set-Item wsman:\localhost\Client\TrustedHosts -Value $IPAddressOldB -Force
-$Credential = Credential -UserName $UserName -tagetPassword $targetPasswordB
 
 $targetPasswordB = "dsf@Fbhc!!hc23P4P"
 $securePassword = convertto-securestring $targetPasswordB -asplaintext -force
 $cred = New-Object System.Management.Automation.PsCredential($UserName, $securePassword)
 
 
-$PSSession = New-PSSession -ComputerName $IPAddressOldB -Credential $cred
+$Session = New-PSSession -ComputerName $IPAddressdB -Credential $cred
+Enter-PSSession -Session $Session
 
-#Configuration servise winrm for NameServerB
-ConfigurationWinRM -PSSession $PSSession
+New-NetIPAddress -IPAddress $IPAddressNewB -InterfaceAlias Ethernet -AddressFamily IPv4
 
-$wmi = Get-WmiObject -Class Win32_NetworkAdapterConfiguration -Filter IPEnabled=TRUE -ComputerName $IPAddressA -Credential $cred
-New-NetIPAddress �IPAddress $IpAddress �PrefixLength 24 -DefaultGateway $DefaultGateway
+Rename-Computer -NewName $ComputerName -Force -PassThru -Restart
+
+$Connection = Test-Connection -ComputerName $IPAddressdB
+Test-Connection 
 
 
 
-Set-Item wsman:\localhost\Client\TrustedHosts -Value $IPAddressOldB -Force
-Set-Item wsman:\localhost\Client\TrustedHosts -Value $IPAddressNewB -Force
+$IPAddress
+
+
+Invoke-Command -Session $Session -ScriptBlock {winrm quickconfig -q} -AsJob
+
+
+
+$wmi = Get-WmiObject -Class Win32_NetworkAdapterConfiguration -Filter IPEnabled=TRUE -ComputerName $IPAddressOldB -Credential $cred
+
+New-NetIPAddress ï¿½IPAddress $IpAddress ï¿½PrefixLength 24 -DefaultGateway $DefaultGateway
+
+
+
+
 
 #Configuration winrm
 
@@ -72,7 +66,7 @@ Invoke-Command -ScriptBlock {Enable-PSRemoting -Force} -ComputerName $IPAddressA
 Test-Connection -IPAddress $IPAddressA
 
 
-$InfoIPAddress = Get-NetIPAddress -IPAddress 
+$InfoIPAddress = Get-NetIPAddress -IPAddress $IPAddressOldB
 
 
 Invoke-Command -ScriptBlock {Enable-PSRemoting -Force} -ComputerName $IPAddressA -AsJob
@@ -98,7 +92,7 @@ Invoke-Command -ComputerName $IPAddressA -ScriptBlock {winrm qc}
 
 New-PSSession -ComputerName $IPAddressA -Authentication Basic -Credential $cred
 
-Invoke-command �computername $IPAddressA -credential $cred �scriptblock {get-service}
+Invoke-command ï¿½computername $IPAddressA -credential $cred ï¿½scriptblock {get-service}
 
 Set-Item wsman:\localhost\Client\TrustedHosts -Value $IPAddressA -Force
 
