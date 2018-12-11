@@ -64,7 +64,7 @@ function RenameComputer{
 
             switch($result.ReturnValue)
             {       
-                0 { Write-Host "Success" }
+                0 { Write-Host "Success Rename Computer" }
                 5 
                 {
                     Write-Error "You need administrative rights to execute this cmdlet" 
@@ -84,4 +84,4 @@ function RenameComputer{
     }
 }
 
-
+switch(((Get-WmiObject -Class Win32_ComputerSystem).Rename($name)).ReturnValue)
