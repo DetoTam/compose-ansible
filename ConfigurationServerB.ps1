@@ -47,11 +47,7 @@ while ($Status -ne "Completed"){
 }
 
 Write-Host "NetIPAddress - $($IPAddressNewB)"  -ForegroundColor Green
-$Config = Invoke-Command -Session $Session -JobName IP -ScriptBlock {Start-Job -ScriptBlock {param ($IPAddressNewB) `
-                                                                                                Get-NetIpAddress `
-                                                                                                | Where-Object {$_.InterfaceAlias -match "Ethernet" -and $_.AddressFamily -eq "IPv4"} `
-                                                                                                | New-NetIPAddress –IPAddress $IPAddressNewB -AddressFamily IPv4 -InterfaceAlias Ethernet} `
-                                                                                                -ArgumentList $IPAddressNewB}
+$Config = Invoke-Command -Session $Session -JobName IP -ScriptBlock {Start-Job -ScriptBlock {param ($IPAddressNewB) Get-NetIpAddress | Where-Object {$_.InterfaceAlias -match "Ethernet" -and $_.AddressFamily -eq "IPv4"} | New-NetIPAddress –IPAddress $IPAddressNewB -AddressFamily IPv4 -InterfaceAlias Ethernet} -ArgumentList $IPAddressNewB}
 $Config
 $Status = ""
 while ($Status -ne "Completed"){
