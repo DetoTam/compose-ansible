@@ -84,4 +84,13 @@ function RenameComputer{
     }
 }
 
-switch(((Get-WmiObject -Class Win32_ComputerSystem).Rename($name)).ReturnValue)
+function GetElapsedTime {
+	param ($BaseTime)
+	$runtime = $(get-date) - $BaseTime
+	$runtime = [string]::format("{0} hours, {1} minutes, {2}.{3} seconds", `
+	$runtime.Hours, `
+	$runtime.Minutes, `
+	$runtime.Seconds, `
+	$runtime.Milliseconds)
+	return $runtime
+}
