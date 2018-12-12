@@ -3,7 +3,6 @@ param(
     [parameter(Mandatory=$false)]
         [string]
         $IPAddressNewB = "192.168.88.3",
-
     [parameter(Mandatory=$false)]
         [string]
         $IPAddressdB = "209.190.121.252",
@@ -30,7 +29,6 @@ $securePassword = convertto-securestring $targetPasswordB -asplaintext -force
 $cred = New-Object System.Management.Automation.PsCredential($UserName, $securePassword)
 
 Write-Host "New-PSSession"  -ForegroundColor Green
-
 $Session = New-PSSession -ComputerName $IPAddressdB -Credential $cred
 $Session
 
@@ -64,26 +62,21 @@ while ($Status -ne "Completed"){
        $Status
 }
 
-
-Enter-PSSession -Session $Session
+Enter-PSSession -Session $Session -Verbose
+$Session
 $ComputerInfo = Get-ComputerInfo
-Write-Host "IP adres $($IPAddress.IPv4Address)" -ForegroundColor Yellow
-Write-Host "Computer name $($ComputerInfo.CsName)" -ForegroundColor Yellow
-Exit-PSSession
-#Restart-Computer
+Write-Host "New computer name $($ComputerInfo.CsName)" -ForegroundColor Yellow
+$IPAddress = Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias Ethernet
+Write-Host "New ip address - $($IPAddress.IPv4Address)" -ForegroundColor Yellow
+
+Write-Host "Restart Computer " -ForegroundColor Red
+$Config = Invoke-Command -Session $Session -JobName Restart -ScriptBlock {Restart-Computer -ComputerName $Name} -AsJob
+$Status = ""
+while ($Status -ne "Completed"){
+       $Status = (Get-Job -Name Restart).State
+       $Status
+       Start-Sleep -s 5
+}
 
 $ElapsedTime = GetElapsedTime($ScriptStartTime)
 Write-Host "Full script execution time: $ElapsedTime" -ForegroundColor Green
-
-
-
-
-#Install-WindowsFeature -name Web-Server -IncludeManagementTools
-#$IPAddress = Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias Ethernet
-#Remove-NetIPAddress -IPAddress 192.168.88.3 -InterfaceIndex 3 -AddressFamily IPv4
-#New-NetIPAddress -IPAddress $IPAddressNewB -InterfaceAlias Ethernet -AddressFamily IPv4
-
-#RenameComputer -name $Name
-
-#Restart-Computer -Force
-
