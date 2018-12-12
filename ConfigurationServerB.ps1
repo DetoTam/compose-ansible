@@ -12,6 +12,9 @@ param(
     [parameter(Mandatory=$false)]
         [string]
         $Name = "VM2-FOR-TEST-CORE"
+    [parameter(Mandatory=$true)]
+        [string]
+        $targetPasswordB
 )   
 cls
 
@@ -24,7 +27,6 @@ Import-Module C:\Users\Administrator\Project\PowerTest\Module\module.ps1 -Verbos
 #Creates a persistent connection to remote computer for NameServerB
 Set-Item wsman:\localhost\Client\TrustedHosts -Value $IPAddressdB -Force
 
-$targetPasswordB = "dsf@Fbhc!!hc23P4P"
 $securePassword = convertto-securestring $targetPasswordB -asplaintext -force
 $cred = New-Object System.Management.Automation.PsCredential($UserName, $securePassword)
 
