@@ -2,7 +2,7 @@
 param(
     [parameter(Mandatory=$true)]
         [string]
-        $IPAddressdФ = "209.190.121.252",
+        $IPAddressdB = "209.190.121.252",
     [parameter(Mandatory=$true)]
         [string]
         $UserName = "Administrator",
@@ -19,3 +19,7 @@ Install-WindowsFeature -name Web-Server -IncludeManagementTools
 .\dotnet-install.ps1 
 
 dotnet publish  --self-contained
+
+New-WebSite -Name "TestSite" -Port 9000 -HostHeader "TestSite" -PhysicalPath "$Env:systemdrive\inetpub\testsite"
+
+New-NetFirewallRule -DisplayName $rulename -Description $description -RemoteAddress $IPAddressdB -LocalPort 9000 -Protocol 'TCP' -Action 'Allow' -Enabled 'True'

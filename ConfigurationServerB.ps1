@@ -21,7 +21,7 @@ cls
 # For script runtime calculation:
 $ScriptStartTime = Get-Date
 
-([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+#([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
 
 Import-Module C:\Users\Administrator\Project\PowerTest\Module\module.ps1 -Verbose -Force
 
@@ -37,7 +37,7 @@ $Session = New-PSSession -ComputerName $IPAddressdB -Credential $cred
 $Session
 
 Write-Host "Install WindowsFeature IIS"  -ForegroundColor Green
-$Config = Invoke-Command -Session $Session -JobName IIS -ScriptBlock {Install-WindowsFeature -name Web-Server -IncludeManagementTools} -AsJob
+$Config = Invoke-Command -Session $Session - -JobName IIS -ScriptBlock {Install-WindowsFeature -name Web-Server -IncludeManagementTools} -AsJob
 $Config
 $Status = ""
 while ($Status -ne "Completed"){
@@ -47,7 +47,7 @@ while ($Status -ne "Completed"){
 }
 
 Write-Host "NetIPAddress - $($IPAddressNewB)"  -ForegroundColor Green
-$Config = Invoke-Command -Session $Session -JobName IP -ScriptBlock {Start-Job -ScriptBlock {param ($IPAddressNewB) Get-NetIpAddress | Where-Object {$_.InterfaceAlias -match "Ethernet" -and $_.AddressFamily -eq "IPv4"} | New-NetIPAddress –IPAddress $IPAddressNewB -AddressFamily IPv4 -InterfaceAlias Ethernet} -ArgumentList $IPAddressNewB}
+$Config = Invoke-Command -Session $Session -JobName IP -ScriptBlock {Start-Job -ScriptBlock {param ($IPAddressNewB) Get-NetIpAddress | Where-Object {$_.InterfaceAlias -match "Ethernet" -and $_.AddressFamily -eq "IPv4"} | New-NetIPAddress -IPAddress $IPAddressNewB -AddressFamily IPv4 -InterfaceAlias Ethernet} -ArgumentList $IPAddressNewB -RunAsAdministrator $UserName}
 $Config
 $Status = ""
 while ($Status -ne "Completed"){
