@@ -11,7 +11,7 @@ param(
         $UserName = "Administrator",
     [parameter(Mandatory=$false)]
         [string]
-        $Name = "VM2-FOR-TEST-CORE"
+        $Name = "VM2-FOR-TEST-CR",
     [parameter(Mandatory=$true)]
         [string]
         $targetPasswordB
@@ -20,6 +20,8 @@ cls
 
 # For script runtime calculation:
 $ScriptStartTime = Get-Date
+
+([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
 
 Import-Module C:\Users\Administrator\Project\PowerTest\Module\module.ps1 -Verbose -Force
 
@@ -44,8 +46,12 @@ while ($Status -ne "Completed"){
        Start-Sleep -s 5
 }
 
-Write-Host "NetIPAddress"  -ForegroundColor Green
-$Config = Invoke-Command -Session $Session -JobName IP -ScriptBlock {New-NetIPAddress -IPAddress $IPAddressNewB -InterfaceAlias Ethernet -AddressFamily IPv4} -AsJob
+Write-Host "NetIPAddress - $($IPAddressNewB)"  -ForegroundColor Green
+$Config = Invoke-Command -Session $Session -JobName IP -ScriptBlock {Start-Job -ScriptBlock {param ($IPAddressNewB) `
+                                                                                                Get-NetIpAddress `
+                                                                                                | Where-Object {$_.InterfaceAlias -match "Ethernet" -and $_.AddressFamily -eq "IPv4"} `
+                                                                                                | New-NetIPAddress –IPAddress $IPAddressNewB -AddressFamily IPv4 -InterfaceAlias Ethernet} `
+                                                                                                -ArgumentList $IPAddressNewB}
 $Config
 $Status = ""
 while ($Status -ne "Completed"){
@@ -64,15 +70,8 @@ while ($Status -ne "Completed"){
        $Status
 }
 
-Enter-PSSession -Session $Session -Verbose
-$Session
-$ComputerInfo = Get-ComputerInfo
-Write-Host "New computer name $($ComputerInfo.CsName)" -ForegroundColor Yellow
-$IPAddress = Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias Ethernet
-Write-Host "New ip address - $($IPAddress.IPv4Address)" -ForegroundColor Yellow
-
 Write-Host "Restart Computer " -ForegroundColor Red
-$Config = Invoke-Command -Session $Session -JobName Restart -ScriptBlock {Restart-Computer -ComputerName $Name} -AsJob
+$Config = Invoke-Command -Session $Session -JobName Restart -ScriptBlock {Restart-Computer -ComputerName $$IPAddressdB -Force} -AsJob
 $Status = ""
 while ($Status -ne "Completed"){
        $Status = (Get-Job -Name Restart).State
