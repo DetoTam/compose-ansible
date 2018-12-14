@@ -56,7 +56,7 @@ if(!(Test-Path -Path $ContentPath)) {
 }
 set-location $ContentPath
 
-Write-Host "Script used to install the .NET Core CLI tools and the shared runtime"  -ForegroundColor Green
+Write-Host "Install the .NET Core CLI tools and the shared runtime"  -ForegroundColor Green
 if (Test-Path $InstallDir)
     {rm -Recurse $InstallDir}
 New-Item -Type "directory" -Path $InstallDir
@@ -80,6 +80,18 @@ $start_time = Get-Date
     Start-BitsTransfer -Source $url -Destination $output
     Start-Process "$output" -ArgumentList $MSIArguments -passthru
 Write-Output "Time taken: $((Get-Date).Subtract($start_time).Seconds) second(s)"
+
+Write-Host "Install git" -ForegroundColor Green
+    $url = "https://github.com/git-for-windows/git/releases/download/v2.20.0.windows.1/Git-2.20.0-64-bit.exe"
+    $output = "Git-2.20.0-64-bit.exe"
+$start_time = Get-Date
+    $MSIArguments = @(
+                    "/q"
+                    "/norestart")
+    Start-BitsTransfer -Source $url -Destination $output
+    Start-Process "$output" -ArgumentList $MSIArguments -passthru
+Write-Output "Time taken: $((Get-Date).Subtract($start_time).Seconds) second(s)"
+
 
 
 

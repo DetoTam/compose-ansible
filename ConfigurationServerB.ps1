@@ -53,7 +53,8 @@ while ($Status -ne "Completed"){
 }
 
 Write-Host "NetIPAddress - $($IPAddressNewB)"  -ForegroundColor Green
-$Config = Invoke-Command -ComputerName $IPAddressdB -Credential $cred -JobName IP -ScriptBlock {Start-Job -ScriptBlock {param ($IPAddressNewB) Get-NetIpAddress | Where-Object {$_.InterfaceAlias -match "Ethernet" -and $_.AddressFamily -eq "IPv4"} | New-NetIPAddress -IPAddress $IPAddressNewB -AddressFamily IPv4 -InterfaceAlias Ethernet} -ArgumentList $IPAddressNewB -RunAsAdministrator $UserName}
+$Config = Invoke-Command -ComputerName $IPAddressdB -Credential $cred -JobName IIS -ScriptBlock {New-NetIPAddress -IPAddress $IPAddressNewB -AddressFamily IPv4 -InterfaceAlias EthernetNew} -AsJob
+#$Config = Invoke-Command -ComputerName $IPAddressdB -Credential $cred -JobName IP -ScriptBlock {Start-Job -ScriptBlock {param ($IPAddressNewB) Get-NetIpAddress | Where-Object {$_.InterfaceAlias -match "Ethernet" -and $_.AddressFamily -eq "IPv4"} | New-NetIPAddress -IPAddress $IPAddressNewB -AddressFamily IPv4 -InterfaceAlias Ethernet} -ArgumentList $IPAddressNewB -RunAsAdministrator $UserName}
 $Config
 $Status = ""
 while ($Status -ne "Completed"){
