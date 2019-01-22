@@ -1,7 +1,7 @@
 param(
     [parameter(Mandatory=$false)]
         [string]
-        $IPAddressA = "209.190.121.251"
+        $IPAddressA = ""
 )   
 cls
 
