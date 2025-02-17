@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  ansible:
+    image: python:3.10-slim
+    container_name: ansible
+    hostname: ansible
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./ansible:/ansible  # Shared volume for interaction with Ansible
+    working_dir: /ansible
+    command: /bin/bash
+    networks:
+      - ansible_network
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "2222:22"
+    depends_on:
+      - semaphore
+
+  mysql:
+    restart: unless-stopped
+    image: mysql:8.0
+    container_name: mysql
+    hostname: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/semaphore_data
+    networks:
+      - ansible_network
+
+  semaphore:
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    image: semaphoreui/semaphore:latest
+    container_name: semaphore
+    environment:
+      SEMAPHORE_DB_USER: ${SEMAPHORE_DB_USER}
+      SEMAPHORE_DB_PASS: ${SEMAPHORE_DB_PASS}
+      SEMAPHORE_DB_HOST: mysql
+      SEMAPHORE_DB_PORT: 3306
+      SEMAPHORE_DB_DIALECT: mysql
+      SEMAPHORE_DB: ${MYSQL_DATABASE}
+      SEMAPHORE_ADMIN_PASSWORD: ${SEMAPHORE_ADMIN_PASSWORD}
+      SEMAPHORE_ADMIN_NAME: ${SEMAPHORE_ADMIN_NAME}
+      SEMAPHORE_ADMIN_EMAIL: ${SEMAPHORE_ADMIN_EMAIL}
+    depends_on:
+      - mysql
+    volumes:
+      - ./ansible:/ansible  # Shared volume for interaction with Ansible
+    networks:
+      - ansible_network
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  ansible_network:
+    driver: bridge
