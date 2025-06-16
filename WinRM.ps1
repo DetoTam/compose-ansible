@@ -4,36 +4,80 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit 1
 }
 
-# Get the computer name
-$certName = $env:COMPUTERNAME
-$dnsName = $certName  # DNS name matches the computer name
+# Domain certificate pattern to search for
+$domainPattern = "*.turnkey-lender.com"
 
-# Check if a certificate with the same name already exists
-Write-Host "Checking if a certificate with the name '$certName' already exists..."
+Write-Host "Searching for domain certificate with pattern: $domainPattern in WebHosting store" -ForegroundColor Green
 
-$existingCert = Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object { $_.FriendlyName -eq $certName }
+# Get certificates from WebHosting store
+$certs = Get-ChildItem -Path "Cert:\LocalMachine\WebHosting" -ErrorAction SilentlyContinue
 
-if ($existingCert) {
-    Write-Host "A certificate with the name '$certName' already exists. Skipping creation." -ForegroundColor Yellow
-    Write-Host "Certificate Thumbprint: $($existingCert.Thumbprint)" -ForegroundColor Green
+$domainCert = $null
+foreach ($cert in $certs) {
+    # Check Subject (CN)
+    if ($cert.Subject -like "*$domainPattern*") {
+        Write-Host "Found certificate by Subject: $($cert.Subject)" -ForegroundColor Green
+        $domainCert = $cert
+        break
+    }
+    
+    # Check Subject Alternative Names (SAN)
+    $san = $cert.Extensions | Where-Object { $_.Oid.FriendlyName -eq "Subject Alternative Name" }
+    if ($san) {
+        $sanValue = $san.Format($false)
+        if ($sanValue -like "*$domainPattern*") {
+            Write-Host "Found certificate by SAN: $sanValue" -ForegroundColor Green
+            $domainCert = $cert
+            break
+        }
+    }
+    
+    # Check DNS names in certificate
+    try {
+        $dnsNames = $cert.DnsNameList
+        foreach ($dnsName in $dnsNames) {
+            if ($dnsName.Unicode -like $domainPattern) {
+                Write-Host "Found certificate by DNS name: $($dnsName.Unicode)" -ForegroundColor Green
+                $domainCert = $cert
+                break
+            }
+        }
+        if ($domainCert) { break }
+    } catch {
+        # Continue if DnsNameList is not available
+    }
+}
+
+if (-not $domainCert) {
+    Write-Host "Domain certificate for '$domainPattern' not found in WebHosting store" -ForegroundColor Red
+    Write-Host "Available certificates in WebHosting store:" -ForegroundColor Yellow
+    
+    $availableCerts = Get-ChildItem -Path "Cert:\LocalMachine\WebHosting" -ErrorAction SilentlyContinue
+    if ($availableCerts) {
+        foreach ($cert in $availableCerts) {
+            Write-Host "  Subject: $($cert.Subject)" -ForegroundColor Gray
+            Write-Host "  Thumbprint: $($cert.Thumbprint)" -ForegroundColor Gray
+            Write-Host "  Expires: $($cert.NotAfter)" -ForegroundColor Gray
+            Write-Host "  ---"
+        }
+    }
+    exit 1
 } else {
-    # Create a self-signed certificate
-    Write-Host "Creating a self-signed certificate for $certName..."
-    $cert = New-SelfSignedCertificate -DnsName $dnsName -CertStoreLocation Cert:\LocalMachine\My -FriendlyName $certName
-
-    # Add the certificate to the "Trusted Root Certification Authorities" store
-    Write-Host "Adding the certificate to Trusted Root Certification Authorities..."
-    $store = New-Object System.Security.Cryptography.X509Certificates.X509Store "Root", "LocalMachine"
-    $store.Open("ReadWrite")
-    $store.Add($cert)
-    $store.Close()
-
-    Write-Host "Certificate created successfully!"
-    Write-Host "Thumbprint: $($cert.Thumbprint)" -ForegroundColor Green
+    Write-Host "Using domain certificate:" -ForegroundColor Green
+    Write-Host "  Subject: $($domainCert.Subject)" -ForegroundColor Green
+    Write-Host "  Thumbprint: $($domainCert.Thumbprint)" -ForegroundColor Green
+    Write-Host "  Expires: $($domainCert.NotAfter)" -ForegroundColor Green
+    
+    # Check if certificate is valid
+    if ($domainCert.NotAfter -lt (Get-Date)) {
+        Write-Host "WARNING: Certificate has expired!" -ForegroundColor Red
+    } elseif ($domainCert.NotAfter -lt (Get-Date).AddDays(30)) {
+        Write-Host "WARNING: Certificate expires within 30 days!" -ForegroundColor Yellow
+    }
 }
 
 # Enable WinRM
-Write-Host "Enabling the WinRM service..." -ForegroundColor Green
+Write-Host "`nEnabling the WinRM service..." -ForegroundColor Green
 Enable-PSRemoting -Force
 
 # Set trusted hosts (optional, if you need to connect to multiple servers)
@@ -65,25 +109,58 @@ if (-not $httpsRuleExists) {
 # Configure WinRM listeners
 Write-Host "Configuring WinRM listeners..." -ForegroundColor Green
 
-# HTTP Listener
-if (-not (Get-WSManInstance -ResourceURI winrm/config/Listener -Enumerate | Where-Object { $_.Port -eq 5985 })) {
-    Write-Host "Creating an HTTP listener..." -ForegroundColor Green
-    New-WSManInstance -ResourceURI winrm/config/Listener -SelectorSet @{Address="*"; Transport="HTTP"}
+# Remove existing listeners if any
+Write-Host "Removing existing WinRM listeners..." -ForegroundColor Yellow
+Get-WSManInstance -ResourceURI winrm/config/Listener -Enumerate | ForEach-Object {
+    Remove-WSManInstance -ResourceURI winrm/config/Listener -SelectorSet @{Address=$_.Address; Transport=$_.Transport}
 }
 
-# HTTPS Listener
-if (-not (Get-WSManInstance -ResourceURI winrm/config/Listener -Enumerate | Where-Object { $_.Port -eq 5986 })) {
-    Write-Host "Creating an HTTPS listener using the generated certificate..." -ForegroundColor Green
-    if ($cert -ne $null) {
-        New-WSManInstance -ResourceURI winrm/config/Listener -SelectorSet @{Address="*"; Transport="HTTPS"} -ValueSet @{CertificateThumbprint=$cert.Thumbprint}
-        Write-Host "HTTPS Listener configured with certificate: $($cert.Thumbprint)" -ForegroundColor Green
-    } else {
-        Write-Host "Error: certificate not found." -ForegroundColor Red
+# HTTP Listener
+Write-Host "Creating HTTP listener..." -ForegroundColor Green
+New-WSManInstance -ResourceURI winrm/config/Listener -SelectorSet @{Address="*"; Transport="HTTP"}
+
+# HTTPS Listener with domain certificate
+Write-Host "Creating HTTPS listener with domain certificate..." -ForegroundColor Green
+try {
+    New-WSManInstance -ResourceURI winrm/config/Listener -SelectorSet @{Address="*"; Transport="HTTPS"} -ValueSet @{CertificateThumbprint=$domainCert.Thumbprint}
+    Write-Host "HTTPS Listener configured successfully with certificate thumbprint: $($domainCert.Thumbprint)" -ForegroundColor Green
+} catch {
+    Write-Host "Error configuring HTTPS listener: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Attempting to configure with hostname..." -ForegroundColor Yellow
+    
+    # Alternative approach: try with hostname
+    $hostname = $env:COMPUTERNAME
+    try {
+        New-WSManInstance -ResourceURI winrm/config/Listener -SelectorSet @{Address="*"; Transport="HTTPS"} -ValueSet @{Hostname=$hostname; CertificateThumbprint=$domainCert.Thumbprint}
+        Write-Host "HTTPS Listener configured with hostname: $hostname" -ForegroundColor Green
+    } catch {
+        Write-Host "Error configuring HTTPS listener with hostname: $($_.Exception.Message)" -ForegroundColor Red
     }
 }
 
-# Check the status of the WinRM service
-Write-Host "Checking the status of the WinRM service..." -ForegroundColor Green
-Get-Service -Name WinRM | Select-Object Status, StartType
+# Set WinRM configuration for better security and performance
+Write-Host "Configuring WinRM settings..." -ForegroundColor Green
+Set-WSManInstance -ResourceURI winrm/config/service -ValueSet @{AllowUnencrypted=$false}
+Set-WSManInstance -ResourceURI winrm/config/service/auth -ValueSet @{Basic=$false}
+Set-WSManInstance -ResourceURI winrm/config/service/auth -ValueSet @{Kerberos=$true}
+Set-WSManInstance -ResourceURI winrm/config/service/auth -ValueSet @{Negotiate=$true}
+Set-WSManInstance -ResourceURI winrm/config/service/auth -ValueSet @{Certificate=$true}
 
-Write-Host "Configuration completed! WinRM is ready to use." -ForegroundColor Green
+# Check the status of the WinRM service
+Write-Host "`nChecking the status of the WinRM service..." -ForegroundColor Green
+$winrmService = Get-Service -Name WinRM
+Write-Host "WinRM Service Status: $($winrmService.Status)" -ForegroundColor Green
+Write-Host "WinRM Service StartType: $($winrmService.StartType)" -ForegroundColor Green
+
+# Display configured listeners
+Write-Host "`nConfigured WinRM listeners:" -ForegroundColor Green
+Get-WSManInstance -ResourceURI winrm/config/Listener -Enumerate | ForEach-Object {
+    Write-Host "  Address: $($_.Address), Transport: $($_.Transport), Port: $($_.Port)" -ForegroundColor Cyan
+    if ($_.Transport -eq "HTTPS") {
+        Write-Host "  Certificate Thumbprint: $($_.CertificateThumbprint)" -ForegroundColor Cyan
+    }
+}
+
+Write-Host "`nConfiguration completed! WinRM is ready to use with domain certificate." -ForegroundColor Green
+Write-Host "You can test the connection using:" -ForegroundColor Yellow
+Write-Host "  Test-WSMan -ComputerName $env:COMPUTERNAME -UseSSL" -ForegroundColor Yellow
