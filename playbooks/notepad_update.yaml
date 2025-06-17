@@ -1,11 +1,11 @@
 ---
 - name: Update Notepad++ via Semaphore
-  hosts: "{{ target_hosts | default('windows') }}"
+  hosts: all
   gather_facts: yes
   become: no
   
   vars:
-    # Переменные для Semaphore (можно задать через Environment или Survey)
+    # Переменные для Semaphore Environment
     temp_dir: "{{ notepad_temp_dir | default('C:\\temp') }}"
     installer_name: "npp_installer.exe"
     installer_path: "{{ temp_dir }}\\{{ installer_name }}"
