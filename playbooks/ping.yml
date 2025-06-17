@@ -1,0 +1,7 @@
+- name: Test conection to server
+  hosts: all
+  gather_facts: no
+
+  tasks:
+    - name: Ping servers
+      ping:

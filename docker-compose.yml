@@ -47,6 +47,7 @@ services:
         condition: service_healthy
     volumes:
       - ./ansible:/ansible
+      - ./playbooks:/playbooks
     networks:
       - ansible_network
 
