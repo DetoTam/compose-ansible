@@ -1,0 +1,148 @@
+---
+- name: Update Notepad++ via Semaphore
+  hosts: "{{ target_hosts | default('windows') }}"
+  gather_facts: yes
+  become: no
+  
+  vars:
+    # Переменные для Semaphore (можно задать через Environment или Survey)
+    temp_dir: "{{ notepad_temp_dir | default('C:\\temp') }}"
+    installer_name: "npp_installer.exe"
+    installer_path: "{{ temp_dir }}\\{{ installer_name }}"
+    force_update: "{{ force_reinstall | default(false) | bool }}"
+    
+  pre_tasks:
+    - name: Validate Windows connection
+      win_ping:
+      register: ping_result
+      
+    - name: Fail if host is unreachable
+      fail:
+        msg: "Cannot connect to Windows host {{ inventory_hostname }}"
+      when: ping_result is failed
+
+  tasks:
+    - name: Create temp directory
+      win_file:
+        path: "{{ temp_dir }}"
+        state: directory
+      tags: [prepare]
+
+    - name: Get current Notepad++ version
+      win_reg_stat:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Notepad++
+        name: DisplayVersion
+      register: current_version
+      ignore_errors: yes
+      tags: [check]
+
+    - name: Fetch latest release info
+      uri:
+        url: https://api.github.com/repos/notepad-plus-plus/notepad-plus-plus/releases/latest
+        method: GET
+        return_content: yes
+        timeout: 30
+      register: github_release
+      delegate_to: localhost
+      run_once: true
+      tags: [check]
+
+    - name: Extract version info
+      set_fact:
+        current_ver: "{{ current_version.value | default('not_installed') }}"
+        latest_ver: "{{ github_release.json.tag_name | regex_replace('^v', '') }}"
+        download_url: "{{ github_release.json.assets | selectattr('name', 'match', '.*Installer.x64.exe$') | map(attribute='browser_download_url') | first }}"
+      tags: [check]
+
+    - name: Display version information
+      debug:
+        msg: |
+          Host: {{ inventory_hostname }}
+          Current version: {{ current_ver }}
+          Latest version: {{ latest_ver }}
+          Update needed: {{ (current_ver != latest_ver) or force_update }}
+      tags: [info]
+
+    - name: Check if update needed
+      set_fact:
+        needs_update: "{{ (current_ver != latest_ver) or force_update }}"
+      tags: [check]
+
+    - block:
+        - name: Download Notepad++ installer
+          win_get_url:
+            url: "{{ download_url }}"
+            dest: "{{ installer_path }}"
+            timeout: 600
+            force: yes
+          register: download_result
+
+        - name: Verify download
+          win_stat:
+            path: "{{ installer_path }}"
+          register: installer_file
+
+        - name: Fail if download unsuccessful
+          fail:
+            msg: "Installer download failed or file not found"
+          when: not installer_file.stat.exists
+
+        - name: Terminate Notepad++ processes
+          win_process:
+            name: notepad++.exe
+            state: absent
+          ignore_errors: yes
+
+        - name: Install Notepad++ silently
+          win_command: '"{{ installer_path }}" /S'
+          register: install_result
+          changed_when: install_result.rc == 0
+
+        - name: Wait for installation to complete
+          win_wait_for:
+            path: "C:\\Program Files\\Notepad++\\notepad++.exe"
+            timeout: 300
+          ignore_errors: yes
+
+        - name: Verify new installation
+          win_reg_stat:
+            path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Notepad++
+            name: DisplayVersion
+          register: updated_version
+
+        - name: Report installation success
+          debug:
+            msg: "✓ Notepad++ updated successfully to version {{ updated_version.value | default('unknown') }}"
+          when: updated_version.exists
+
+      when: needs_update
+      tags: [install]
+
+    - name: Cleanup installer
+      win_file:
+        path: "{{ installer_path }}"
+        state: absent
+      when: needs_update
+      tags: [cleanup]
+
+    - name: No update required
+      debug:
+        msg: "ℹ Notepad++ is up to date ({{ current_ver }})"
+      when: not needs_update
+      tags: [info]
+
+  post_tasks:
+    - name: Generate summary report
+      set_fact:
+        update_summary:
+          host: "{{ inventory_hostname }}"
+          previous_version: "{{ current_ver }}"
+          new_version: "{{ updated_version.value | default(current_ver) }}"
+          updated: "{{ needs_update }}"
+          timestamp: "{{ ansible_date_time.iso8601 }}"
+      tags: [report]
+
+    - name: Display final status
+      debug:
+        var: update_summary
+      tags: [report]
