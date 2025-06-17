@@ -26,5 +26,6 @@ WORKDIR /ansible
 # Install additional components
 RUN ansible-galaxy collection install community.general
 RUN ansible-galaxy collection install ansible.posix
+RUN ansible-galaxy collection install ansible.windows community.windows
 
 CMD ["bash"]

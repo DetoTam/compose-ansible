@@ -3,6 +3,9 @@
   hosts: all
   gather_facts: yes
   become: no
+  collections:
+    - ansible.windows
+    - community.windows
   
   vars:
     # Переменные для Semaphore Environment
@@ -13,7 +16,7 @@
     
   pre_tasks:
     - name: Validate Windows connection
-      win_ping:
+      ansible.windows.win_ping:
       register: ping_result
       
     - name: Fail if host is unreachable
@@ -23,13 +26,13 @@
 
   tasks:
     - name: Create temp directory
-      win_file:
+      ansible.windows.win_file:
         path: "{{ temp_dir }}"
         state: directory
       tags: [prepare]
 
     - name: Get current Notepad++ version
-      win_reg_stat:
+      ansible.windows.win_reg_stat:
         path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Notepad++
         name: DisplayVersion
       register: current_version
@@ -70,7 +73,7 @@
 
     - block:
         - name: Download Notepad++ installer
-          win_get_url:
+          ansible.windows.win_get_url:
             url: "{{ download_url }}"
             dest: "{{ installer_path }}"
             timeout: 600
@@ -78,7 +81,7 @@
           register: download_result
 
         - name: Verify download
-          win_stat:
+          ansible.windows.win_stat:
             path: "{{ installer_path }}"
           register: installer_file
 
@@ -88,24 +91,24 @@
           when: not installer_file.stat.exists
 
         - name: Terminate Notepad++ processes
-          win_process:
+          ansible.windows.win_process:
             name: notepad++.exe
             state: absent
           ignore_errors: yes
 
         - name: Install Notepad++ silently
-          win_command: '"{{ installer_path }}" /S'
+          ansible.windows.win_command: '"{{ installer_path }}" /S'
           register: install_result
           changed_when: install_result.rc == 0
 
         - name: Wait for installation to complete
-          win_wait_for:
+          ansible.windows.win_wait_for:
             path: "C:\\Program Files\\Notepad++\\notepad++.exe"
             timeout: 300
           ignore_errors: yes
 
         - name: Verify new installation
-          win_reg_stat:
+          ansible.windows.win_reg_stat:
             path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Notepad++
             name: DisplayVersion
           register: updated_version
@@ -119,7 +122,7 @@
       tags: [install]
 
     - name: Cleanup installer
-      win_file:
+      ansible.windows.win_file:
         path: "{{ installer_path }}"
         state: absent
       when: needs_update
