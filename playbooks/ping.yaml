@@ -1,8 +1,9 @@
 ---
-- name: Test conection to server
-  hosts: all
-  gather_facts: no
+- name: Ping all Windows servers
+  hosts: windows 
+  gather_facts: false 
 
   tasks:
-    - name: Ping servers
-      ping:
+    - name: Test connectivity to Windows server
+      win_ping: 
+        data: "pong"
